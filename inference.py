@@ -67,6 +67,7 @@ def main():
         img = imread(img_file).astype(np.float32)
         tensor_img = inference_transform([img])[0][0].unsqueeze(0).cuda()
         pred_depth = model.inference_depth(tensor_img)
+        print("TYPPPPE", type(pred_depth), pred_depth.size(), pred_depth.dtype)
 
         if hparams.save_vis:
             vis = visualize_depth(pred_depth[0, 0]).permute(
@@ -78,6 +79,7 @@ def main():
             depth = pred_depth[0, 0].cpu().numpy()
             np.save(output_dir/'depth/{}.npy'.format(filename), depth)
 
+    torch.onnx.export(model.depth_net, tensor_img, "sc_deptch_pl.onnx", verbose=True)
 
 if __name__ == '__main__':
     main()

@@ -121,8 +121,13 @@ class SC_DepthV2(LightningModule):
         loss_rot_triplet = (rot2.abs() - rot1.abs() + 0.05).clamp(min=0).mean()
 
         return ref_imgs_warped, loss_rot_consistency, loss_rot_triplet, rot1.abs().mean(), rot2.abs().mean()
-
+    
+    def forward_new(self, img):
+        pred_depth = self.depth_net(img)
+        return pred_depth
+    
     def forward(self, tgt_img, ref_imgs, intrinsics):
+        
         # in lightning, forward defines the prediction/inference actions for training
         tgt_depth = self.inference_depth(tgt_img)
         ref_imgs_warped, loss_rc, loss_rt, rot_before, rot_after = self.rectify_imgs(
