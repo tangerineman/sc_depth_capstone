@@ -80,4 +80,4 @@ if __name__ == '__main__':
         # save depth
         plt.imsave(os.path.join(image_dir_out, img_name[:-4]+'-depth.png'), pred_depth_ori, cmap='rainbow')
         cv2.imwrite(os.path.join(image_dir_out, img_name[:-4]+'-depth_raw.png'), (pred_depth_ori/pred_depth_ori.max() * 60000).astype(np.uint16))
-    torch.onnx.export(depth_model.depth_model.cpu(), img_torch, "LeRes.onnx", verbose=False, opset_version=11)
+    # torch.onnx.export(depth_model.depth_model.cpu(), img_torch, "LeRes.onnx", verbose=False, opset_version=11)

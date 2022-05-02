@@ -7,7 +7,6 @@ from darknet_ros_msgs.msg import BoundingBoxes
 import matplotlib.pyplot as plt
 import numpy as np
 import time
-from pipeline_test import pipe_inference, Pipe_model
 import cv2.aruco as aruco
 
 # SHIT FOR TEST: WILL FIX LATER
@@ -17,31 +16,37 @@ class DepthEstimator:
         self.height = 480
         self.count = 0
         
-        self.pipe_model = Pipe_model()
         self.cv_bridge = CvBridge()
         self.spin_callback = rospy.Timer(rospy.Duration(0.1), self.spin)
+        self.depth_color = np.zeros((self.height, self.width))
         self.camera_image = np.zeros((self.height, self.width))
         self.pred_depth_uint8 = np.zeros((self.height, self.width)).astype(np.uint8)
         self.depth_color = np.zeros((self.height, self.width, 3))
         self.bboxes = BoundingBoxes()
-        self.new_image = False
+        self.new_camera_image = False
+        self.new_depth_image = False
         self.new_bbox = False
         self.qr_depth = []
-        self.image_streamer = rospy.Subscriber(
-            "/usb_cam/image_raw", Image, self.image_callback
+        self.depth_streamer = rospy.Subscriber(
+            "/mono_depth/image_raw", Image, self.depth_callback
         )
         self.bbox_streamer = rospy.Subscriber(
             "/darknet_ros/bounding_boxes", BoundingBoxes, self.darknet_callback
         )
-        self.depth_publisher = rospy.Publisher ('mono_depth', Image, queue_size=10)
+        self.image_streamer = rospy.Subscriber(
+            "/usb_cam/image_raw", Image, self.image_callback
+        )
 
         self.valid_order = [1]
         self.time_length = 30
 
     def image_callback(self, msg):
         self.camera_image = self.cv_bridge.imgmsg_to_cv2(msg, "passthrough")
-        self.new_image = True
-
+        self.new_camera_image = True
+    def depth_callback(self, msg):
+        self.pred_depth_uint8 = self.cv_bridge.imgmsg_to_cv2(msg, "passthrough")
+        self.depth_color = cv2.cvtColor(self.pred_depth_uint8, cv2.COLOR_GRAY2RGB)
+        self.new_depth_image = True
     def darknet_callback(self, msg):
         self.bboxes = msg
         self.new_bbox = True
@@ -89,7 +94,8 @@ class DepthEstimator:
             self.valid_order.append(1 if is_ordered else 0)
             assert(len(self.valid_order) <= self.time_length)
             accuracy = sum(self.valid_order)/len(self.valid_order)
-            print(f"Accuracy for last 10 points: {accuracy}")
+            print(f"Accuracy for last {self.time_length} frames: {accuracy}")
+            cv2.putText(self.depth_color, f"Acc: {round(accuracy, 3)}", (15,20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
             
 
@@ -109,28 +115,11 @@ class DepthEstimator:
         # self.count += 1 
 
     def spin(self, event):
-        if self.new_image:
-            self.new_image = False
-            shape = self.camera_image.shape
-
-            rgb_image = cv2.cvtColor(self.camera_image, cv2.COLOR_BGR2RGB)
+        if self.new_depth_image:
+            self.new_depth_image = False
             
-            pred_depth = pipe_inference(self.pipe_model.model, rgb_image)
-
-            pred_depth_resized = cv2.resize(pred_depth, (shape[1], shape[0]))
-
-            pred_depth_scaled = pred_depth_resized / np.max(pred_depth_resized)
-
-            pred_depth_scaled = np.clip(pred_depth_scaled, 0, 1)
-
-            self.pred_depth_uint8 = (pred_depth_scaled * 255).astype(np.uint8)
-            self.depth_color = cv2.cvtColor(self.pred_depth_uint8, cv2.COLOR_GRAY2RGB)
-
-            # depth_image_color = cv2.applyColorMap(self.pred_depth_uint8, cv2.COLORMAP_JET)
-            # self.depth_publisher.publish(self.cv_bridge.cv2_to_imgmsg(self.pred_depth_uint8, encoding="passthrough"))
-
             
-            self.get_qr_code_bboxes(rgb_image)
+            self.get_qr_code_bboxes(self.camera_image)
             # arr = []
             # for cur_id, qr_depth, _,_ in self.qr_depth:
             #     arr.append((cur_id, qr_depth))
